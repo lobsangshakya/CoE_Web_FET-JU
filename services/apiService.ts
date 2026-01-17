@@ -5,7 +5,8 @@
  */
 
 // Deployment URL from Apps Script
-const APPS_SCRIPT_URL = "YOUR_DEPLOYED_WEB_APP_URL";
+// This should be replaced with your actual deployed Apps Script URL
+const APPS_SCRIPT_URL = process.env.VITE_APPS_SCRIPT_URL || "YOUR_DEPLOYED_WEB_APP_URL";
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -34,7 +35,7 @@ export const secureFetch = async <T = any>(
     const response = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "text/plain;charset=utf-8", // Avoid pre-flight CORS issues with GAS
+        "Content-Type": "application/json", // Changed to JSON content type
       },
       body: JSON.stringify({
         action,
@@ -44,10 +45,26 @@ export const secureFetch = async <T = any>(
       })
     });
 
-    // Handle Google Apps Script's specific redirect behavior if not using 'no-cors'
-    // Note: If using 'no-cors', the response is opaque and we can't see 'success'.
-    // For this implementation, we assume a CORS-enabled or Proxied environment.
-    const result: ApiResponse<T> = await response.json();
+    // Google Apps Script sometimes redirects, so we need to handle the response properly
+    let responseText;
+    try {
+      // Get the redirected URL content
+      responseText = await response.text();
+      console.log('Raw response from Apps Script:', responseText);
+    } catch (textError) {
+      console.error('Error getting response text:', textError);
+      throw new Error('Unable to read response from server');
+    }
+
+    // Parse the response text
+    let result: ApiResponse<T>;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
+      console.log('Response text was:', responseText);
+      throw new Error('Invalid JSON response from server');
+    }
 
     if (!result.success) {
       throw new Error(result.error || `Server returned error ${result.code}`);
