@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Firebase ID Token Test</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <h2>Firebase ID Token Test</h2>
+  <button id="getTokenBtn">Sign in and Get Token</button>
+  <pre id="tokenOutput"></pre>
+
+  <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAeihSJVvJ1PvJCn89G1AR49ZzKbgAc8go",
+      authDomain: "coe-fetju.firebaseapp.com",
+      projectId: "coe-fetju",
+      storageBucket: "coe-fetju.firebasestorage.app",
+      messagingSenderId: "346865125555",
+      appId: "1:346865125555:web:b6dbe6ab297016934048c6"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    document.getElementById('getTokenBtn').addEventListener('click', () => {
+      // Sign in test user
+      firebase.auth().signInWithEmailAndPassword("testuser@example.com", "Test@1234")
+        .then((userCredential) => {
+          console.log("User signed in:", userCredential.user.email);
+          // Get Firebase ID Token
+          return firebase.auth().currentUser.getIdToken(true);
+        })
+        .then((idToken) => {
+          console.log("Firebase ID Token:", idToken);
+          document.getElementById('tokenOutput').innerText = idToken;
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          document.getElementById('tokenOutput').innerText = JSON.stringify(error, null, 2);
+        });
+    });
+  </script>
+</body>
+</html>
