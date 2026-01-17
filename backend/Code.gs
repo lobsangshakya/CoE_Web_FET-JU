@@ -43,88 +43,156 @@ const SCHEMAS = {
   'updateAuthMapping': ['firebase_uid', 'enrollment_no', 'internal_id'],
   
   // Password operations
-  'updatePassword': ['newPassword']
+  'updatePassword': ['newPassword'],
+  
+  // Test operations
+  'testConnection': []
 };
 
 /**
  * MAIN REQUEST HANDLER
  */
 function doPost(e) {
+  Logger.log('doPost function called');
+  
+  // Check if spreadsheet ID is configured
+  const sheetId = CONFIG.SHEET_ID;
+  if (!sheetId) {
+    Logger.log('ERROR: SPREADSHEET_ID is not configured in Script Properties');
+    return response(false, 500, { error: "Server configuration error: SPREADSHEET_ID not set" });
+  }
+  
+  Logger.log('SPREADSHEET_ID is configured');
+  
   const cache = CacheService.getScriptCache();
   
   try {
+    Logger.log('Raw request data: ' + e.postData.contents);
+    
     const request = JSON.parse(e.postData.contents);
     const { action, token, requestId, payload } = request;
+    
+    Logger.log('Parsed request - action: ' + action + ', requestId: ' + requestId);
 
     // 1. Replay Attack Protection
     if (!requestId || cache.get(requestId)) {
+      Logger.log('Replay attack detected or missing requestId');
       return response(false, 400, { error: "Security violation: Replay attack detected" });
     }
     cache.put(requestId, "seen", 600); 
+    Logger.log('Request passed replay protection');
 
     // 2. Auth Verification (Google-Recommended OAuth2 Endpoint)
+    Logger.log('Verifying Firebase token...');
     const authUser = verifyFirebaseToken(token);
-    if (!authUser) return response(false, 401, { error: "Authentication failed" });
+    if (!authUser) {
+      Logger.log('Authentication failed');
+      return response(false, 401, { error: "Authentication failed" });
+    }
+    Logger.log('Authentication successful for user: ' + authUser.uid);
 
     // 3. Identity & Global RBAC Check
+    Logger.log('Getting user profile for: ' + authUser.uid);
     const userProfile = getUserProfile(authUser.uid);
-    if (!userProfile) return response(false, 403, { error: "Identity not mapped in CoE database" });
-    if (!userProfile.is_active) return response(false, 403, { error: "Account administratively disabled" });
+    if (!userProfile) {
+      Logger.log('User profile not found for: ' + authUser.uid);
+      return response(false, 403, { error: "Identity not mapped in CoE database" });
+    }
+    Logger.log('User profile found, role: ' + userProfile.role);
+    
+    if (userProfile.is_active === false || userProfile.is_active === 'FALSE' || userProfile.is_active === 'false') {
+      Logger.log('User account is inactive: ' + authUser.uid);
+      return response(false, 403, { error: "Account administratively disabled" });
+    }
+    Logger.log('User account is active');
     
     // 4. Force Password Reset Gate
-    if (userProfile.force_password_reset === true && action !== 'updatePassword') {
-      return response(false, 403, { error: "Password reset required", forceReset: true });
+    if (userProfile.force_password_reset === true || userProfile.force_password_reset === 'TRUE' || userProfile.force_password_reset === 'true') {
+      if (action !== 'updatePassword') {
+        Logger.log('Password reset required for user: ' + authUser.uid);
+        return response(false, 403, { error: "Password reset required", forceReset: true });
+      }
     }
+    Logger.log('Passed password reset check');
 
     // 5. Authorization & Sanitization Pipeline
-    if (!SCHEMAS[action]) return response(false, 404, { error: "Unknown action" });
+    if (!SCHEMAS[action]) {
+      Logger.log('Unknown action requested: ' + action);
+      return response(false, 404, { error: "Unknown action" });
+    }
+    Logger.log('Action schema found, proceeding with sanitization');
+    
     const cleanPayload = sanitize(payload, action);
+    Logger.log('Payload sanitized, proceeding to routing');
     
     // 6. Router
+    Logger.log('Routing to action: ' + action);
     switch (action) {
       // User operations
       case 'createUser':
+        Logger.log('Checking createUser authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleCreateUser(userProfile, cleanPayload) : forbidden();
       case 'updateUser':
+        Logger.log('Checking updateUser authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleUpdateUser(userProfile, cleanPayload) : forbidden();
       case 'getUser':
+        Logger.log('Checking getUser authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleGetUser(userProfile, cleanPayload) : forbidden();
         
       // Project operations
       case 'submitProject':
+        Logger.log('Checking submitProject authorization');
         return authorize(userProfile.role, 'STUDENT') ? handleSubmitProject(userProfile, cleanPayload) : forbidden();
       case 'updateProject':
+        Logger.log('Checking updateProject authorization');
         return authorize(userProfile.role, 'FACULTY') ? handleUpdateProject(userProfile, cleanPayload) : forbidden();
       case 'approveProject':
+        Logger.log('Checking approveProject authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleApproveProject(userProfile, cleanPayload) : forbidden();
       case 'getProject':
+        Logger.log('Checking getProject authorization');
         return authorize(userProfile.role, 'FACULTY') ? handleGetProject(userProfile, cleanPayload) : forbidden();
         
       // Event operations
       case 'createEvent':
+        Logger.log('Checking createEvent authorization');
         return authorize(userProfile.role, 'FACULTY') ? handleCreateEvent(userProfile, cleanPayload) : forbidden();
       case 'updateEvent':
+        Logger.log('Checking updateEvent authorization');
         return authorize(userProfile.role, 'FACULTY') ? handleUpdateEvent(userProfile, cleanPayload) : forbidden();
       case 'getEvent':
+        Logger.log('Checking getEvent authorization');
         return authorize(userProfile.role, 'FACULTY') ? handleGetEvent(userProfile, cleanPayload) : forbidden();
         
       // Auth mapping operations
       case 'createAuthMapping':
+        Logger.log('Checking createAuthMapping authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleCreateAuthMapping(userProfile, cleanPayload) : forbidden();
       case 'updateAuthMapping':
+        Logger.log('Checking updateAuthMapping authorization');
         return authorize(userProfile.role, 'ADMIN') ? handleUpdateAuthMapping(userProfile, cleanPayload) : forbidden();
         
       // Password operations
       case 'updatePassword':
+        Logger.log('Handling updatePassword');
         return handleUpdatePassword(userProfile, cleanPayload);
         
+      // Test connection
+      case 'testConnection':
+        Logger.log('Test connection successful for user: ' + authUser.uid);
+        logAudit(authUser.uid, "CONNECTION_TEST", "CONNECTION_SUCCESS");
+        return response(true, 200, { message: "Connection successful", userId: authUser.uid });
+        
       default:
+        Logger.log('Action not implemented: ' + action);
         return response(false, 400, { error: "Endpoint not implemented" });
     }
 
   } catch (err) {
-    logAudit("SYSTEM", "CRITICAL", "API_ERROR", err.toString());
-    return response(false, 500, { error: "Internal Server Error" });
+    Logger.log('Error in doPost: ' + err.toString());
+    Logger.log('Stack trace: ' + err.stack);
+    logAudit("SYSTEM", "API_ERROR", err.toString());
+    return response(false, 500, { error: "Internal Server Error: " + err.toString() });
   }
 }
 
@@ -136,9 +204,17 @@ function doPost(e) {
  */
 function verifyFirebaseToken(token) {
   try {
+    Logger.log('Starting token verification for token: ' + (token ? token.substring(0, 20) + '...' : 'null'));
+    
+    if (!token) {
+      Logger.log('Token is null or undefined');
+      return null;
+    }
+    
     // Decode token header and payload without verification first to get kid
     const parts = token.split('.');
     if (parts.length !== 3) {
+      Logger.log('Token does not have 3 parts');
       return null;
     }
     
@@ -147,29 +223,54 @@ function verifyFirebaseToken(token) {
     
     // Use Google's tokeninfo endpoint as fallback
     const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${jwt}`;
-    const response = UrlFetchApp.fetch(url);
+    Logger.log('Making request to: ' + url);
+    
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true  // This prevents exceptions on HTTP errors
+    });
+    
+    Logger.log('Response code: ' + response.getResponseCode());
+    Logger.log('Response content: ' + response.getContentText());
+    
+    if (response.getResponseCode() !== 200) {
+      Logger.log('Token verification failed - HTTP error');
+      return null;
+    }
+    
     const data = JSON.parse(response.getContentText());
     
+    Logger.log('Parsed token data: ', data);
+    
     // Verify issuer and audience
-    if (data.iss !== 'https://accounts.google.com' && data.iss !== 'accounts.google.com') {
+    const validIssuers = ['https://accounts.google.com', 'accounts.google.com'];
+    if (!validIssuers.includes(data.iss)) {
+      Logger.log('Invalid issuer: ' + data.iss);
       return null;
     }
     
     const firebaseProjectId = CONFIG.FIREBASE_PROJECT_ID;
-    if (data.aud !== firebaseProjectId) {
+    Logger.log('Expected audience (Firebase Project ID): ' + firebaseProjectId);
+    Logger.log('Actual audience: ' + data.aud);
+    
+    if (firebaseProjectId && data.aud !== firebaseProjectId) {
+      Logger.log('Audience mismatch');
       return null;
     }
     
     // Verify token hasn't expired
     const currentTime = Math.floor(Date.now() / 1000);
     if (data.exp < currentTime) {
+      Logger.log('Token expired');
       return null;
     }
+    
+    Logger.log('Token verification successful');
     
     // sub is the Firebase UID
     return { uid: data.sub, email: data.email };
     
   } catch (e) {
+    Logger.log('Token verification error: ' + e.toString());
     console.error('Token verification error:', e);
     return null;
   }
@@ -638,10 +739,63 @@ function handleUpdatePassword(user, data) {
  * CORE UTILITIES
  */
 function getSheet(name) {
-  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
-  const sheet = ss.getSheetByName(name);
-  if (!sheet) throw new Error("Database integrity error: Sheet " + name + " missing.");
-  return sheet;
+  const sheetId = CONFIG.SHEET_ID;
+  Logger.log('Attempting to access spreadsheet with ID: ' + (sheetId ? sheetId.substring(0, 10) + '...' : 'UNDEFINED'));
+  
+  if (!sheetId) {
+    throw new Error("SPREADSHEET_ID is not configured in Script Properties");
+  }
+  
+  try {
+    const ss = SpreadsheetApp.openById(sheetId);
+    Logger.log('Successfully opened spreadsheet');
+    
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      Logger.log('Sheet not found: ' + name);
+      // Attempt to create the sheet if it doesn't exist
+      Logger.log('Creating sheet: ' + name);
+      const newSheet = ss.insertSheet(name);
+      
+      // Set up headers based on the sheet name
+      if (name === 'Users') {
+        const headers = [
+          "uid", "name", "email", "role", "department", "coe_id", "description", "is_active", "force_password_reset"
+        ];
+        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      } else if (name === 'Projects') {
+        const headers = [
+          "project_id", "title", "description", "category", "faculty_lead_uid", "student_ids", 
+          "team_list", "status", "progress", "submitted_at", "reviewed_by", "reviewed_at", "rejection_reason"
+        ];
+        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      } else if (name === 'Events') {
+        const headers = [
+          "event_id", "title", "date", "time", "location", "type", "description", "status", "submitted_by", "coe_id"
+        ];
+        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      } else if (name === 'AuthMapping') {
+        const headers = [
+          "firebase_uid", "enrollment_no", "internal_id", "last_login"
+        ];
+        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      } else if (name === 'AuditLogs') {
+        const headers = [
+          "timestamp", "actor_uid", "action", "target_id", "details", "severity"
+        ];
+        newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      }
+      
+      Logger.log('Created sheet: ' + name + ' with headers');
+      return newSheet;
+    }
+    
+    Logger.log('Found existing sheet: ' + name);
+    return sheet;
+  } catch (error) {
+    Logger.log('Error accessing spreadsheet: ' + error.toString());
+    throw new Error("Failed to access spreadsheet: " + error.toString());
+  }
 }
 
 function response(success, code, data) {
