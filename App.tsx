@@ -10,6 +10,7 @@ import Header from './components/common/Header';
 import Footer from './components/common/Footer';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import DashboardLayout from './pages/dashboard/DashboardLayout';
+import FirebaseLoginTest from './components/FirebaseLoginTest';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const COEHubPage = lazy(() => import('./pages/coe/COEHubPage'));
@@ -84,6 +85,7 @@ const App = () => {
               {/* Standalone Authentication Routes */}
               <Route path="/login" element={<Suspense fallback={<div>Loading...</div>}><LoginPage /></Suspense>} />
               <Route path="/signup" element={<Suspense fallback={<div>Loading...</div>}><SignupPage /></Suspense>} />
+              <Route path="/test-login" element={<FirebaseLoginTest />} />
 
 
               {/* Admin Dashboard Routes */}

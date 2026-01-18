@@ -10,14 +10,54 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    if (login(email.toLowerCase())) {
-      navigate('/');
-    } else {
-      setError('Invalid credentials. Please try again.');
+    // Validate credentials before proceeding
+    const validCredentials = {
+      email: 'dummyfirebase12@gmail.com',
+      password: 'Admin@123'
+    };
+    
+    if (email !== validCredentials.email || password !== validCredentials.password) {
+      setError('Invalid credentials. Please use:\nEmail: dummyfirebase12@gmail.com\nPassword: Admin@123');
+      return;
+    }
+    
+    try {
+      // Import Firebase dynamically
+      const { initializeApp } = await import('firebase/app');
+      const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth');
+      
+      // Firebase Configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyAeihSJVvJ1PvJCn89G1AR49ZzKbgAc8go",
+        authDomain: "coe-fetju.firebaseapp.com",
+        projectId: "coe-fetju",
+        storageBucket: "coe-fetju.appspot.com",
+        messagingSenderId: "346865125555",
+        appId: "1:346865125555:web:b6dbe6ab297016934048c6"
+      };
+      
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      
+      // Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const idToken = await userCredential.user.getIdToken();
+      
+      // If Firebase auth succeeds, proceed with app login
+      if (login(email.toLowerCase())) {
+        navigate('/');
+      } else {
+        setError('Authentication successful but user not found in system.');
+      }
+      
+    } catch (error: any) {
+      console.error('Firebase authentication error:', error);
+      setError(`Authentication failed: ${error.message}`);
     }
   };
 
@@ -112,26 +152,35 @@ const LoginPage = () => {
                 </div>
                 
                 <div className="space-y-3">
-                     <button
+                    <button
                         type="button"
-                        onClick={() => handleQuickLogin('student@jain.com')}
+                        onClick={() => {
+                            setEmail('student@jain.com');
+                            setPassword('student123');
+                        }}
                         className="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
                     >
-                        Login as Student
+                        Log in as Student
                     </button>
                     <button
                         type="button"
-                        onClick={() => handleQuickLogin('faculty@jain.com')}
+                        onClick={() => {
+                            setEmail('faculty@jain.com');
+                            setPassword('faculty123');
+                        }}
                         className="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
                     >
-                        Login as Faculty
+                        Log in as Faculty
                     </button>
                     <button
                         type="button"
-                        onClick={() => handleQuickLogin('admin@jain.com')}
+                        onClick={() => {
+                            setEmail('dummyfirebase12@gmail.com');
+                            setPassword('Admin@123');
+                        }}
                         className="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
                     >
-                        Login as Admin
+                        Log in as Admin
                     </button>
                 </div>
                  <div className="text-center mt-6">

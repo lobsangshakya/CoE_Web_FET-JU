@@ -33,4 +33,11 @@ export const MOCK_USERS: Record<string, User> = {
     role: ROLES.ADMIN,
     avatarUrl: 'https://picsum.photos/seed/admin/100/100',
   },
+  'dummyfirebase12@gmail.com': {
+    id: 'user-4',
+    name: 'Test Administrator',
+    email: 'dummyfirebase12@gmail.com',
+    role: ROLES.ADMIN,
+    avatarUrl: 'https://picsum.photos/seed/testadmin/100/100',
+  },
 };

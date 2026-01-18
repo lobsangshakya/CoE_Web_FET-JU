@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^1.21.0",
+    "firebase": "^12.8.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "@google/genai": "^1.21.0",
     "react-router-dom": "^7.9.3",
     "recharts": "^3.2.1"
   },
