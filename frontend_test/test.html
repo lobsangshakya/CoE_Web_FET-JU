@@ -41,15 +41,16 @@
 
 <script>
 /***************************************
- * FIREBASE CONFIG
+ * FIREBASE CONFIG - UPDATE THESE
  ***************************************/
-const firebaseConfig = {
+ const firebaseConfig = {
   apiKey: "AIzaSyAeihSJVvJ1PvJCn89G1AR49ZzKbgAc8go",
   authDomain: "coe-fetju.firebaseapp.com",
   projectId: "coe-fetju",
-  storageBucket: "coe-fetju.appspot.com",
+  storageBucket: "coe-fetju.firebasestorage.app",
   messagingSenderId: "346865125555",
-  appId: "1:346865125555:web:b6dbe6ab297016934048c6"
+  appId: "1:346865125555:web:b6dbe6ab297016934048c6",
+  measurementId: "G-S2CH7T1Y59"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -57,9 +58,7 @@ firebase.initializeApp(firebaseConfig);
 /***************************************
  * CONSTANTS
  ***************************************/
-const WEB_APP_URL =
-  "https://script.google.com/macros/s/AKfycbwm27kxyZBB7o1iyV09tNNd5nxWnxIyjoMkuD2LLFAqQa6T7fYxcw2yFzblU4NfVJLY/exec";
-
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwm27kxyZBB7o1iyV09tNNd5nxWnxIyjoMkuD2LLFAqQa6T7fYxcw2yFzblU4NfVJLY/exec"; // Replace with deployed web app URL
 const output = document.getElementById("output");
 const btn = document.getElementById("btn");
 
@@ -70,9 +69,10 @@ btn.addEventListener("click", async () => {
   try {
     output.textContent = "Signing in to Firebase...";
 
+    await firebase.auth().signOut(); // Clear cached user
     await firebase.auth().signInWithEmailAndPassword(
-      "testuser@example.com",
-      "Test@1234"
+      "dummyfirebase12@gmail.com",
+      "DummyPassword@1"
     );
 
     const user = firebase.auth().currentUser;
